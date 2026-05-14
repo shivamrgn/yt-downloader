@@ -1,0 +1,15 @@
+{
+  "name": "yt-downloader",
+  "version": "1.0.0",
+  "description": "YouTube Video Downloader",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "setup": "pip3 install yt-dlp --break-system-packages && npm install"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "yt-dlp-wrap": "^2.3.12"
+  }
+}

@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VORTEX — YouTube Downloader</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #080a0f;
+      --surface:   #0d1018;
+      --card:      #111520;
+      --border:    #1e2535;
+      --accent:    #e8ff47;
+      --accent2:   #47ffe8;
+      --red:       #ff4757;
+      --text:      #e8ecf4;
+      --muted:     #6b7591;
+      --glow:      rgba(232, 255, 71, 0.15);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      overflow-x: hidden;
+    }
+
+    /* ── Noise grain overlay ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+    }
+
+    /* ── Scanlines ── */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.04) 2px,
+        rgba(0,0,0,0.04) 4px
+      );
+      pointer-events: none;
+    }
+
+    .page { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Header ── */
+    header {
+      padding: 2rem 2.5rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.2rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo-mark {
+      width: 44px; height: 44px;
+      background: var(--accent);
+      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+      display: flex; align-items: center; justify-content: center;
+      animation: spin-hex 12s linear infinite;
+    }
+
+    @keyframes spin-hex { to { transform: rotate(360deg); } }
+
+    .logo-mark svg { width: 22px; height: 22px; }
+
+    .wordmark {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.2rem;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      text-shadow: 0 0 24px var(--glow);
+    }
+
+    .tagline {
+      margin-left: auto;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    /* ── Main ── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 5rem 1.5rem 4rem;
+      gap: 3rem;
+    }
+
+    .hero-text {
+      text-align: center;
+    }
+
+    .hero-text h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3rem, 8vw, 6rem);
+      letter-spacing: 0.06em;
+      line-height: 1;
+      background: linear-gradient(135deg, var(--text) 40%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-text p {
+      margin-top: 0.8rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* ── Input area ── */
+    .input-zone {
+      width: 100%;
+      max-width: 700px;
+    }
+
+    .url-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 4px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .url-wrapper:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--glow), 0 0 32px var(--glow);
+    }
+
+    .url-icon {
+      padding: 0 1rem;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    #urlInput {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      padding: 1.1rem 0.5rem;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.9rem;
+      color: var(--text);
+      caret-color: var(--accent);
+    }
+
+    #urlInput::placeholder { color: var(--muted); }
+
+    #pasteBtn {
+      padding: 0.5rem 1rem;
+      margin-right: 0.5rem;
+      background: var(--border);
+      border: none;
+      border-radius: 3px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: background 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+
+    #pasteBtn:hover { background: var(--accent); color: #000; }
+
+    #analyzeBtn {
+      width: 100%;
+      margin-top: 0.8rem;
+      padding: 1rem;
+      background: var(--accent);
+      border: none;
+      border-radius: 4px;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.3rem;
+      letter-spacing: 0.15em;
+      color: #000;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.2s, opacity 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+    }
+
+    #analyzeBtn:hover {
+      box-shadow: 0 0 28px var(--glow);
+      transform: translateY(-1px);
+    }
+
+    #analyzeBtn:active { transform: translateY(0); }
+    #analyzeBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* ── Spinner ── */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(0,0,0,0.3);
+      border-top-color: #000;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Result card ── */
+    #result {
+      width: 100%;
+      max-width: 700px;
+      display: none;
+      animation: slideUp 0.35s cubic-bezier(.22,.68,0,1.2) both;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .video-card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .video-meta {
+      display: flex;
+      gap: 1.2rem;
+      padding: 1.4rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .thumb-wrap {
+      position: relative;
+      flex-shrink: 0;
+      width: 140px; height: 80px;
+      border-radius: 3px;
+      overflow: hidden;
+      background: var(--border);
+    }
+
+    .thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
+
+    .duration-badge {
+      position: absolute;
+      bottom: 5px; right: 5px;
+      background: rgba(0,0,0,0.85);
+      color: var(--text);
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 2px;
+      letter-spacing: 0.05em;
+    }
+
+    .video-info { flex: 1; min-width: 0; }
+
+    .video-info h2 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      line-height: 1.4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 0.5rem;
+    }
+
+    .video-info .channel {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+
+    .video-info .views {
+      font-size: 0.68rem;
+      color: var(--muted);
+    }
+
+    /* ── Format grid ── */
+    .formats-section { padding: 1.4rem; }
+
+    .formats-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .formats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 0.6rem;
+    }
+
+    .fmt-btn {
+      position: relative;
+      padding: 0.85rem 0.8rem;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 3px;
+      cursor: pointer;
+      text-align: center;
+      transition: border-color 0.15s, background 0.15s, transform 0.1s;
+      overflow: hidden;
+    }
+
+    .fmt-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--accent);
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .fmt-btn:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .fmt-btn:hover::before { opacity: 0.06; }
+
+    .fmt-btn.downloading { border-color: var(--accent2); }
+    .fmt-btn.downloading .fmt-res { color: var(--accent2); }
+
+    .fmt-res {
+      display: block;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      position: relative;
+    }
+
+    .fmt-ext {
+      display: block;
+      font-size: 0.6rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      position: relative;
+      margin-top: 2px;
+    }
+
+    .fmt-size {
+      display: block;
+      font-size: 0.6rem;
+      color: var(--muted);
+      position: relative;
+      margin-top: 3px;
+    }
+
+    /* ── Progress bar ── */
+    .dl-progress {
+      margin-top: 1rem;
+      display: none;
+    }
+
+    .progress-track {
+      height: 3px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      transition: width 0.3s;
+      border-radius: 99px;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .progress-label {
+      margin-top: 0.5rem;
+      font-size: 0.68rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* ── Error ── */
+    #errorBox {
+      display: none;
+      background: rgba(255, 71, 87, 0.08);
+      border: 1px solid var(--red);
+      border-radius: 4px;
+      padding: 1rem 1.2rem;
+      color: var(--red);
+      font-size: 0.8rem;
+      width: 100%;
+      max-width: 700px;
+      animation: slideUp 0.25s both;
+    }
+
+    /* ── Footer ── */
+    footer {
+      padding: 1.5rem 2.5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+
+    .footer-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .footer-dots span {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+
+    .footer-dots span:first-child { background: var(--red); }
+    .footer-dots span:nth-child(2) { background: var(--accent); }
+    .footer-dots span:last-child { background: var(--accent2); }
+
+    /* ── Responsive ── */
+    @media (max-width: 500px) {
+      header { padding: 1.2rem 1rem; }
+      .tagline { display: none; }
+      main { padding: 3rem 1rem 3rem; }
+      .video-meta { flex-direction: column; }
+      .thumb-wrap { width: 100%; height: 160px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round">
+        <polygon points="5,3 19,12 5,21"/>
+      </svg>
+    </div>
+    <span class="wordmark">VORTEX</span>
+    <span class="tagline">YouTube Downloader v1.0</span>
+  </header>
+
+  <!-- ── Main ── -->
+  <main>
+    <div class="hero-text">
+      <h1>PULL ANY VIDEO</h1>
+      <p>Paste a link → choose quality → download instantly</p>
+    </div>
+
+    <!-- URL input -->
+    <div class="input-zone">
+      <div class="url-wrapper">
+        <span class="url-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+        </span>
+        <input
+          id="urlInput"
+          type="text"
+          placeholder="Paste YouTube link — auto-detects instantly"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button id="pasteBtn">PASTE</button>
+      </div>
+      <button id="analyzeBtn">
+        <div class="spinner" id="spinner"></div>
+        <span id="analyzeBtnText">ANALYZE VIDEO</span>
+      </button>
+    </div>
+
+    <!-- Error -->
+    <div id="errorBox"></div>
+
+    <!-- Result -->
+    <div id="result">
+      <div class="video-card">
+        <!-- Meta row -->
+        <div class="video-meta">
+          <div class="thumb-wrap">
+            <img id="thumbnail" src="" alt="thumbnail" />
+            <span class="duration-badge" id="duration"></span>
+          </div>
+          <div class="video-info">
+            <h2 id="videoTitle"></h2>
+            <div class="channel" id="channel"></div>
+            <div class="views" id="views"></div>
+          </div>
+        </div>
+
+        <!-- Formats -->
+        <div class="formats-section">
+          <div class="formats-label">— Choose download format</div>
+          <div class="formats-grid" id="formatsGrid"></div>
+
+          <!-- Progress -->
+          <div class="dl-progress" id="dlProgress">
+            <div class="progress-track">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-label">
+              <span id="dlStatus">Preparing download…</span>
+              <span id="dlSize"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── Footer ── -->
+  <footer>
+    <div class="footer-dots">
+      <span></span><span></span><span></span>
+    </div>
+    <span>FOR PERSONAL USE ONLY — RESPECT COPYRIGHT LAWS</span>
+    <span>VORTEX © 2025</span>
+  </footer>
+
+</div>
+
+<script>
+  const urlInput   = document.getElementById('urlInput');
+  const pasteBtn   = document.getElementById('pasteBtn');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const spinner    = document.getElementById('spinner');
+  const btnText    = document.getElementById('analyzeBtnText');
+  const errorBox   = document.getElementById('errorBox');
+  const resultEl   = document.getElementById('result');
+
+  let currentVideoData = null;
+  let activeDownload = null;
+
+  function isYouTubeUrl(url) {
+    try {
+      const u = new URL(url);
+      return u.hostname.includes('youtube.com') || u.hostname.includes('youtu.be');
+    } catch { return false; }
+  }
+
+  // ── Paste button (clipboard) → auto-analyze ──
+  pasteBtn.addEventListener('click', async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      urlInput.value = text;
+      urlInput.focus();
+      if (isYouTubeUrl(text.trim())) {
+        flashInput();
+        setTimeout(() => analyzeVideo(), 200);
+      }
+    } catch {
+      urlInput.focus();
+    }
+  });
+
+  // ── Direct Ctrl+V / mobile paste into input → auto-analyze ──
+  urlInput.addEventListener('paste', () => {
+    setTimeout(() => {
+      const val = urlInput.value.trim();
+      if (isYouTubeUrl(val)) {
+        flashInput();
+        analyzeVideo();
+      }
+    }, 80);
+  });
+
+  // ── Enter key ──
+  urlInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') analyzeVideo();
+  });
+
+  function flashInput() {
+    const wrapper = document.querySelector('.url-wrapper');
+    wrapper.style.transition = 'box-shadow 0.15s';
+    wrapper.style.boxShadow = '0 0 0 3px rgba(232,255,71,0.5), 0 0 32px rgba(232,255,71,0.3)';
+    setTimeout(() => { wrapper.style.boxShadow = ''; }, 600);
+  }
+
+  analyzeBtn.addEventListener('click', analyzeVideo);
+
+  function setLoading(on) {
+    analyzeBtn.disabled = on;
+    spinner.style.display = on ? 'block' : 'none';
+    btnText.textContent = on ? 'ANALYZING…' : 'ANALYZE VIDEO';
+  }
+
+  function showError(msg) {
+    errorBox.textContent = '⚠ ' + msg;
+    errorBox.style.display = 'block';
+    resultEl.style.display = 'none';
+  }
+
+  function hideError() {
+    errorBox.style.display = 'none';
+  }
+
+  function formatDuration(secs) {
+    if (!secs) return '';
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    if (h) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    return `${m}:${String(s).padStart(2,'0')}`;
+  }
+
+  function formatViews(n) {
+    if (!n) return '';
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B views';
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M views';
+    if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K views';
+    return n + ' views';
+  }
+
+  function formatBytes(bytes) {
+    if (!bytes) return '';
+    if (bytes >= 1e9) return (bytes / 1e9).toFixed(1) + ' GB';
+    if (bytes >= 1e6) return (bytes / 1e6).toFixed(0) + ' MB';
+    return (bytes / 1e3).toFixed(0) + ' KB';
+  }
+
+  async function analyzeVideo() {
+    const url = urlInput.value.trim();
+    if (!url) { showError('Please enter a YouTube URL.'); return; }
+
+    hideError();
+    setLoading(true);
+    resultEl.style.display = 'none';
+
+    try {
+      const resp = await fetch(`/api/info?url=${encodeURIComponent(url)}`);
+      const data = await resp.json();
+
+      if (!resp.ok) throw new Error(data.error || 'Unknown error');
+
+      currentVideoData = data;
+      renderResult(data, url);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function renderResult(data, rawUrl) {
+    document.getElementById('thumbnail').src = data.thumbnail || '';
+    document.getElementById('videoTitle').textContent = data.title || 'Unknown title';
+    document.getElementById('duration').textContent = formatDuration(data.duration);
+    document.getElementById('channel').textContent = data.channel || '';
+    document.getElementById('views').textContent = formatViews(data.view_count);
+
+    const grid = document.getElementById('formatsGrid');
+    grid.innerHTML = '';
+
+    data.formats.forEach(fmt => {
+      const btn = document.createElement('button');
+      btn.className = 'fmt-btn';
+      btn.dataset.formatId = fmt.format_id;
+      btn.dataset.ext = fmt.ext;
+
+      const resLabel = fmt.label === 'Audio only (MP3)' ? '🎵' : fmt.label;
+      const sizeText = formatBytes(fmt.filesize);
+
+      btn.innerHTML = `
+        <span class="fmt-res">${resLabel}</span>
+        <span class="fmt-ext">${fmt.ext.toUpperCase()}${fmt.fps ? ' · ' + fmt.fps + 'fps' : ''}</span>
+        ${sizeText ? `<span class="fmt-size">~${sizeText}</span>` : ''}
+      `;
+
+      btn.addEventListener('click', () => startDownload(rawUrl, fmt, btn));
+      grid.appendChild(btn);
+    });
+
+    // Reveal
+    resultEl.style.display = 'block';
+    resultEl.style.animation = 'none';
+    void resultEl.offsetHeight;
+    resultEl.style.animation = '';
+    document.getElementById('dlProgress').style.display = 'none';
+  }
+
+  function startDownload(url, fmt, btn) {
+    const progress    = document.getElementById('dlProgress');
+    const fill        = document.getElementById('progressFill');
+    const statusEl    = document.getElementById('dlStatus');
+    const sizeEl      = document.getElementById('dlSize');
+
+    // Visual state
+    document.querySelectorAll('.fmt-btn').forEach(b => b.classList.remove('downloading'));
+    btn.classList.add('downloading');
+    progress.style.display = 'block';
+    fill.style.width = '0%';
+    statusEl.textContent = 'Connecting to server…';
+    sizeEl.textContent = '';
+
+    const dlUrl = `/api/download?url=${encodeURIComponent(url)}&format_id=${encodeURIComponent(fmt.format_id)}&title=${encodeURIComponent(currentVideoData.title || 'video')}`;
+
+    // Use fetch + ReadableStream to show progress
+    fetch(dlUrl)
+      .then(async resp => {
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ error: 'Download failed' }));
+          throw new Error(err.error);
+        }
+
+        const contentLength = resp.headers.get('Content-Length');
+        const total = contentLength ? parseInt(contentLength, 10) : 0;
+        let received = 0;
+        const chunks = [];
+
+        statusEl.textContent = 'Downloading…';
+
+        // Fake animated progress since we use chunked encoding
+        let fakeProgress = 0;
+        const fakeInterval = setInterval(() => {
+          fakeProgress = Math.min(fakeProgress + Math.random() * 3, 90);
+          fill.style.width = fakeProgress + '%';
+          if (received > 0) sizeEl.textContent = formatBytes(received);
+        }, 400);
+
+        const reader = resp.body.getReader();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+
+          if (total) {
+            const pct = Math.min((received / total) * 100, 99);
+            fill.style.width = pct + '%';
+            sizeEl.textContent = `${formatBytes(received)} / ${formatBytes(total)}`;
+          } else {
+            sizeEl.textContent = formatBytes(received);
+          }
+        }
+
+        clearInterval(fakeInterval);
+        fill.style.width = '100%';
+        statusEl.textContent = 'Processing file…';
+
+        const blob = new Blob(chunks, { type: fmt.ext === 'mp3' ? 'audio/mpeg' : 'video/mp4' });
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `${(currentVideoData.title || 'video').replace(/[^\w\s\-]/g,'').replace(/\s+/g,'_')}.${fmt.ext}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+
+        statusEl.textContent = '✓ Download complete!';
+        btn.classList.remove('downloading');
+      })
+      .catch(err => {
+        statusEl.textContent = '⚠ ' + (err.message || 'Download failed');
+        fill.style.background = 'var(--red)';
+        btn.classList.remove('downloading');
+      });
+  }
+</script>
+</body>
+</html>
